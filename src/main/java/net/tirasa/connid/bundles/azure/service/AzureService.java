@@ -15,8 +15,9 @@
  */
 package net.tirasa.connid.bundles.azure.service;
 
-import com.azure.identity.ClientSecretCredential;
-import com.azure.identity.ClientSecretCredentialBuilder;
+import com.azure.identity.UsernamePasswordCredential;
+import com.azure.identity.UsernamePasswordCredentialBuilder;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.MalformedURLException;
@@ -82,7 +83,8 @@ public class AzureService {
 
             UserNamePasswordParameters parameters = UserNamePasswordParameters
                     .builder(Collections.singleton(config.getScopes()), config.getUsername(),
-                            config.getPassword().toCharArray()).build();
+                            config.getPassword().toCharArray())
+                    .build();
 
             authenticationResult = pca.acquireToken(parameters).join();
             LOG.ok("==username/password flow succeeded");
@@ -115,16 +117,14 @@ public class AzureService {
 
     public GraphServiceClient getGraphServiceClient() {
         checkAuth();
-
-        final ClientSecretCredential clientSecretCredential = new ClientSecretCredentialBuilder()
+        final UsernamePasswordCredential usernamePasswordCredential = new UsernamePasswordCredentialBuilder()
                 .clientId(config.getClientId())
-                .clientSecret(config.getClientSecret())
-                .tenantId(config.getTenantId())
+                .username(config.getUsername())
+                .password(config.getPassword())
                 .build();
-
-        final TokenCredentialAuthProvider tokenCredAuthProvider =
-                new TokenCredentialAuthProvider(Collections.singletonList(config.getScopes()), clientSecretCredential);
-
+        final TokenCredentialAuthProvider tokenCredAuthProvider = new TokenCredentialAuthProvider(
+                Collections.singletonList(config.getScopes()),
+                usernamePasswordCredential);
         return GraphServiceClient.builder().authenticationProvider(tokenCredAuthProvider).buildClient();
     }
 
@@ -135,7 +135,7 @@ public class AzureService {
     private static List<Map<String, String>> getXMLObjectFromAzureAD(final String type) {
         List<Map<String, String>> result = new ArrayList<>();
 
-        // e.g. 
+        // e.g.
         // https://graph.windows.net/[DOMAIN_NAME].onmicrosoft.com/$metadata#directoryObjects/Microsoft.DirectoryServices.User
         try {
             OkHttpClient client = new OkHttpClient();
@@ -151,7 +151,7 @@ public class AzureService {
             DocumentBuilder db = dbf.newDocumentBuilder();
             Document doc = db.parse(xml);
 
-            //optional, but recommended
+            // optional, but recommended
             doc.getDocumentElement().normalize();
 
             result.addAll(getAttributesFromNodeList(doc, type));
